@@ -1285,6 +1285,10 @@ class LuaContext {
       state_api_get_carried_object_action,
       state_api_set_carried_object_action,
 
+      // NET API
+      net_api_test,
+      net_api_http_get,
+
       // available to all userdata types
       userdata_meta_gc,
       userdata_meta_newindex_as_table,
@@ -1356,6 +1360,7 @@ class LuaContext {
     void register_map_module();
     void register_entity_module();
     void register_state_module();
+    void register_net_module();
 
     // Pushing objects to Lua.
     static void push_main(lua_State* current_l);
