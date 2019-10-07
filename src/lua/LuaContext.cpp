@@ -1085,6 +1085,8 @@ void LuaContext::register_modules() {
   register_language_module();
   register_state_module();
 
+  register_net_module();
+
   Debug::check_assertion(lua_gettop(current_l) == 0,
       "Lua stack is not empty after modules initialization");
 }
