@@ -1,22 +1,23 @@
-// socket, bind, connect ...
 #include "solarus/net/net.h"
 #include <stdlib.h>
 
+#define MAX_SOCKETS 10
 
+// -- function declaration --
+int net_open_local();
+char* read_headers(char *response, struct net_resp* resp);
+char* net_http_header( const char* header, struct net_resp* resp );
+char* dump_header( const char* header, struct net_resp* resp );
+int net_http_query(const char* method, const char* querystring, const char* body, 
+	const char* headers, struct net_resp* resp);
+// --------------------------
 
-int net_remoteaddress(struct sockaddr_in *s_rem, const char *rhost, int port) {
-	struct hostent *h;
-	s_rem->sin_family = AF_INET;
-	s_rem->sin_port = htons(port);
-	// resolution du nom d'hôte
-	if((h=gethostbyname(rhost))==0) {
-		printf("%s : unknow host ",rhost); 
-		return -1;
-	}
-	// copy de l'adresse IP en fonction de sa taille.
-	memcpy( (void *)(h->h_addr), (void *)&(s_rem->sin_addr), h->h_length );
-	return 0;
-}
+	
+int next_ind = 0;
+TCPsocket server_socket;
+// Client clients[MAX_SOCKETS];
+SDLNet_SocketSet socket_set;
+TCPsocket sockets[MAX_SOCKETS];
 
 #define CRLF "\r\n"
 
@@ -29,28 +30,33 @@ const char* query =
 		"Accept-Encoding: deflate" CRLF
 		;
 
-struct sockaddr_in s_rem;
+// struct sockaddr_in s_rem;
 
 int net_open_local() {
 	// création d'un descripteur unix pour la socket.
-	int sock = socket(AF_INET, SOCK_STREAM, 0);
-	int ret = 0;
-	printf("fd socket => %d\n", sock);
-	
-	ret = net_remoteaddress( &s_rem, "localhost", 8080 );
-	if ( ret ) { printf("erreur resolution adresse (%d)\n", ret); goto end; }
-	
-	// int connect(int descsocket, struct sockaddr* ptsockaddr, int lensockaddr);
-	ret = connect( sock, (struct sockaddr*) &s_rem, sizeof(s_rem) );
-	if ( ret < 0 ) { printf("erreur connexion socket (%d)\n", ret); goto end; }
-
-	end:
-	if ( ret ) {
-		close( sock );
-		// printf("returns %d\n", ret);
-		return ret;
+	if (next_ind >= MAX_SOCKETS) {
+		printf("No more client socket available\n");
+		return -1;
 	}
-	return sock;
+
+	IPaddress ip;
+	if(SDLNet_ResolveHost(&ip,"127.0.0.1", 8080)==-1)
+	{
+		printf("SDLNet_ResolveHost: %s\n",SDLNet_GetError());
+		return -1;
+	}
+
+	TCPsocket sock = SDLNet_TCP_Open(&ip);
+	if(!sock)
+	{
+		printf("SDLNet_TCP_Open: %s\n",SDLNet_GetError());
+		return -1;
+	}
+
+	int i = next_ind;
+	sockets[i] = sock;
+	next_ind++;
+	return i;
 }
 
 char* read_headers(char *response, struct net_resp* resp) {
@@ -83,9 +89,15 @@ char* dump_header( const char* header, struct net_resp* resp ) {
 			printf( "[%d] %s\n", i, resp->headers[i] );
 }
 
-int net_read_response(int sock, struct net_resp* resp) {
+int net_read_response(int s, struct net_resp* resp) {
+	TCPsocket sock = sockets[s];
 	char * buff = (char *) malloc(2000);
-	int read = recv( sock, buff, 2000, 0);
+	int read = SDLNet_TCP_Recv( sock, buff, 2000);
+	if ( read < 0 ) {
+		printf("SDLNet_TCP_Recv: %s\n",SDLNet_GetError());
+		resp->code = read;
+		return read;
+	}
 	if ( read < 2000 ) buff[read] = '\0';
 	int length = -1;
 	int chunked = 0;
@@ -139,21 +151,7 @@ int net_read_response(int sock, struct net_resp* resp) {
 }
 
 int net_main() {
-	int code = -1;
-	int sock = net_open_local();
-	if ( sock < 0 ) return sock;
-
-	send(sock, "GET /", 5, 0);
-	code = send(sock, query, strlen(query), 0);
-	if ( code < 0 ) goto end;
-	
-	struct net_resp resp;
-	code = net_read_response( sock, &resp );
-	// free( resp.body );
-	
-end:
-	close( sock );
-	return code;
+	return -1;
 }
 
 int net_http_get(const char* querystring, const char* headers, struct net_resp* resp) {
@@ -167,11 +165,21 @@ char* create_http_headers(const char* method, const char* querystring, const cha
 
 	// if ( headers != NULL ) printf("headers ... \n%s\n", headers);
 	if ( headers != NULL ) ptr += sprintf(ptr, "%s", headers);
-	ptr += sprintf( ptr, "Content-Length: %lu" CRLF , content_length );
+	ptr += sprintf( ptr, "Content-Length: %d" CRLF , content_length );
 	ptr += sprintf( ptr, "%s", CRLF );
 	ptr[0] = 0;
 	return buffer;
 }
+
+void socket_close(int s)
+{
+	if ( s > MAX_SOCKETS ) return;
+	TCPsocket sock = sockets[s];
+	SDLNet_TCP_Close(sock);
+	next_ind--;
+	if (next_ind < 0) next_ind = 0;
+}
+
 
 int net_http_query(const char* method, const char* querystring, const char* body, 
 	const char* headers, struct net_resp* resp) {
@@ -186,12 +194,13 @@ int net_http_query(const char* method, const char* querystring, const char* body
 	// printf("headers(2) ... \n%s\n", headers);
 	char* buffer = create_http_headers(method, querystring, headers, content_length);
 
-	code = send(sock, buffer, strlen(buffer), 0);
+	// code = socketsend(sock, buffer, strlen(buffer), 0);
+	code = SDLNet_TCP_Send(sockets[sock], buffer, strlen(buffer));
 	// printf("%s %d\n", buffer, code);
 	if ( code < 0 ) goto end;
 	
 	if ( body != NULL ) {
-		code = send(sock, body, strlen(body), 0);
+		code = SDLNet_TCP_Send(sockets[sock], body, strlen(body));
 		// printf("%s\n", body);
 		if ( code < 0 ) goto end;
 	}
@@ -200,7 +209,7 @@ int net_http_query(const char* method, const char* querystring, const char* body
 	
 end:
 	free(buffer);
-	close( sock );
+	socket_close( sock );
 	return code;
 }
 

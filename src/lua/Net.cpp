@@ -427,6 +427,12 @@ int net_api_http_post(lua_State* l) {
   });
 }
 
+int run_test(lua_State* l) {
+   int r = system("java -version");
+   lua_pushnumber(l, r);
+   return 1;
+}
+
 
 
 /**
@@ -439,7 +445,8 @@ void LuaContext::register_net_module() {
       { "http_get", net_api_http_get },
       { "http_post", net_api_http_post },
       { "json_get", Solarus::net_api_json_get },
-      { "json_post", Solarus::net_api_json_post }
+      { "json_post", Solarus::net_api_json_post },
+      { "run", run_test},
   };
 
 /*

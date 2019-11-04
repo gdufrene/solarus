@@ -24,6 +24,7 @@
 #include "solarus/graphics/Sprite.h"
 #include "solarus/graphics/Video.h"
 #include <SDL.h>
+#include <SDL_net.h>
 #ifdef SOLARUS_USE_APPLE_POOL
 #  include "lowlevel/apple/AppleInterface.h"
 #endif
@@ -45,6 +46,7 @@ void System::initialize(const Arguments& args) {
 
   // initialize SDL
   SDL_Init(SDL_INIT_VIDEO | SDL_INIT_JOYSTICK);
+  SDLNet_Init();
   initial_time = get_real_time();
   ticks = 0;
 
@@ -77,6 +79,7 @@ void System::quit() {
   FontResource::quit();
   Video::quit();
 
+  SDLNet_Quit();
   SDL_Quit();
 }
 
