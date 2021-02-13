@@ -1,10 +1,24 @@
-#include "solarus/net/net.h"
+#include "solarus/net/Http.h"
+#include "solarus/net/Json.h"
 #include "solarus/lua/LuaContext.h"
-#include "solarus/third_party/json/jsmin.h"
 
 #include <string>
 
-namespace Solarus {
+#define index(str, c) (strchr(str, c) - str)
+
+namespace Solarus::Net {
+
+/**
+ * Name of the Lua table representing the map module.
+ */
+const std::string net_module_name = "sol.net";
+
+// defines ...
+int net_api_http_post(lua_State* l);
+int push_headers(lua_State* l, Solarus::Http::Response *resp);
+int push_common_response(lua_State* l, Solarus::Http::Response *resp);
+// ---- ---- ----
+
 
 static void stackDump (lua_State *L) {
   int i;
@@ -37,18 +51,8 @@ static void stackDump (lua_State *L) {
   printf("----- top -----\n");
 }
 
-/**
- * Name of the Lua table representing the map module.
- */
-const std::string net_module_name = "sol.net";
 
-// defines ...
-void push_json_object(lua_State* l, char *json, jsmntok_t *tokens);
-void push_json_array(lua_State* l, char *json, jsmntok_t *tokens);
-void push_json_value(lua_State* l, char *json, jsmntok_t *tokens);
-int net_api_http_post(lua_State* l);
-int push_headers(lua_State* l, struct net_resp* resp);
-int push_common_response(lua_State* l, char* headers, struct net_resp* resp, int ret);
+
 
 
 int inc = 0;
@@ -72,71 +76,6 @@ void print_table(lua_State *L)
         lua_pop(L, 1);
     }
     printf("}\n");
-}
-
-void push_json_array(lua_State* l, char *json, jsmntok_t *tokens) {
-  int size = tokens->size;
-  int idx = 1;
-  lua_newtable(l);
-  while (size-- > 0) {
-    // value ...
-    tokens++;
-    push_json_value(l, json, tokens);
-    lua_rawseti(l, -2, idx++);
-  }
-}
-
-void push_json_value(lua_State* l, char *json, jsmntok_t *tokens) {
-  char *ptr = json + tokens->start;
-  if ( tokens->type == JSMN_STRING ) {
-    json[ tokens->end ] = '\0';
-    // printf("string -> %s\n", ptr);
-    lua_pushstring(l, ptr);
-  }
-  else if ( tokens->type == JSMN_PRIMITIVE ) {
-    char c = json[ tokens->start ];
-    if ( c >= '0' && c <= '9' ) {
-      double value;
-      json[ tokens->end ] = '\0';
-      // strncpy( buffer, ptr, tokens[idx].end - tokens[idx].start );
-      value = strtod(ptr, NULL);
-      // printf("number -> %.2f\n", value);
-      lua_pushnumber(l, value);
-    } else {
-      int boolvalue = (c == 't' || c == 'T');
-      lua_pushboolean(l, boolvalue);
-      // printf("bool -> %s\n", (boolvalue ? "true" : "false"));
-    }
-  }
-  else if ( tokens->type == JSMN_OBJECT ) {
-    push_json_object(l, json, tokens);
-  }
-  else if ( tokens->type == JSMN_ARRAY ) {
-    push_json_array(l, json, tokens);
-  }
-  else {
-    lua_pushstring(l, "#Json Unknown type#");
-  }
-}
-
-void push_json_object(lua_State* l, char *json, jsmntok_t *tokens) {
-  int size = tokens->size;
-  char *ptr;
-  lua_newtable(l);
-  while (size-- > 0) {
-    // Key (must be string)
-    tokens++;
-    ptr = json + tokens->start;
-    json[ tokens->end ] = '\0';
-    // printf("key -> %s\n", ptr);
-    lua_pushstring(l, ptr);
-
-    // value ...
-    tokens++;
-    push_json_value(l, json, tokens);
-
-    lua_settable(l, -3);
-  }
 }
 
 std::string table_to_json(lua_State* l) {
@@ -197,28 +136,35 @@ int push_json( lua_State* l, char *json ) {
       return 1;
     }
 
-    jsmn_parser parser;
-    jsmn_init(&parser);
-    // char json[] = "{\"hello\": 123, \"ahahah\": true, \"table\": [8, 2, \"aeiou\", false]}";
-    jsmntok_t tokens[100];
-    int r = jsmn_parse( &parser, json, strlen(json), tokens, 100 );
+    Solarus::Json::Parser *parser = Solarus::Json::createParser();
 
-    if ( r == JSMN_ERROR_NOMEM ) return luaL_error(l, "Json contains too much nodes");
-    if ( r == JSMN_ERROR_INVAL ) return luaL_error(l, "Json contains invalid characters");
-    if ( r == JSMN_ERROR_PART ) return luaL_error(l, "incomplete or malformated Json");
+    auto new_table = [&] (int size) { lua_newtable(l); };
 
-    if (r < 1 || tokens[0].type != JSMN_OBJECT) {
-      return luaL_error(l, "Body must be a json object");
-    }
-    
-    push_json_object(l, json, tokens);
+    parser
+      ->onString( [&] (char* val) { lua_pushstring(l, val); } )
+      ->onNumber( [&] (double val) { lua_pushnumber(l, val); })
+      ->onBoolean( [&] (bool val) { lua_pushboolean(l, val); })
+      ->onObject( new_table,
+        [&] () { lua_settable(l, -3); }
+      )
+      ->onArray( new_table,
+        [&] (int idx) { lua_rawseti(l, -2, idx); }
+      )
+      ->onError( [&] (const char* error) { luaL_error(l, error); } )
+      ;
+
+    delete parser;
+
     return 1;
 }
 
 
 
-int push_headers(lua_State* l, struct net_resp* resp) {
-  if ( ! resp->headers ) return 0;
+int push_headers(lua_State* l, Solarus::Http::Response *resp) {
+  if ( ! resp->headers ) {
+    lua_pushnil(l);
+    return 1;
+  }
 
   lua_newtable(l);
 
@@ -238,7 +184,7 @@ int push_headers(lua_State* l, struct net_resp* resp) {
     if ( header == NULL ) continue;
 
     char *name = header;
-    int i = index(name, ':') - name;
+    int i = index(name, ':');
     if ( i > 0 ) name[i] = '\0';
     
     char *value = name + i + 2;
@@ -247,10 +193,10 @@ int push_headers(lua_State* l, struct net_resp* resp) {
     if (!strcmp("Set-Cookie", name)) {
       nb_cookie++;
       name = value;
-      i = index(name, '=') - name;
+      i = index(name, '=');
       name[i] = '\0';
       value = name + i + 1;
-      i = index(value, ';') - value;
+      i = index(value, ';');
       if ( i > 0 ) value[i] = '\0';
       lua_pushstring(l, name);
       lua_pushstring(l, value);
@@ -325,105 +271,63 @@ std::string table_to_headers(lua_State* l) {
 
   // stackDump(l);
   return headers;
-} 
-
-int net_api_json_post(lua_State* l) {
-  return LuaContext::state_boundary_handle(l, [&] {
-    struct net_resp resp = { .code = -1, .content_length = -1, .body = NULL };
-    const char* headers = lua_istable(l, 3) ? table_to_headers(l).c_str() : NULL;
-    int ret = net_http_post( 
-      lua_tostring(l, 1), 
-      lua_istable(l, 2) ? table_to_json(l).c_str() : "{}",
-      headers,
-      &resp 
-    );
-    if ( ret < 0 ) return 0;
-    lua_pushnumber( l, resp.code );
-    // if ( headers ) free( headers );
-    return 1 + push_json(l, resp.body) + push_headers(l, &resp);
-  });
 }
 
-int net_api_json_get(lua_State* l) {
-  return LuaContext::state_boundary_handle(l, [&] {
-    struct net_resp resp = { .code = -1, .content_length = -1, .body = NULL };
-    const char* headers = lua_istable(l, 2) ? table_to_headers(l).c_str() : NULL;
-    int ret = net_http_get( lua_tostring(l, 1), headers, &resp );
-    if ( ret < 0 ) return 0;
-    lua_pushnumber( l, resp.code );
-    return 1 + push_json(l, resp.body) + push_headers(l, &resp);
-  });
-}
-
-
-
-
-int LuaContext::net_api_test(lua_State* l) {
-  return state_boundary_handle(l, [&] {
-    struct net_resp resp = { .code = -1, .content_length = -1, .body = NULL };
-    int ret = net_http_get( lua_tostring(l, 1), NULL, &resp );
-    return push_common_response(l, NULL, &resp, ret);
-  });
-}
-
-char* init_qry(lua_State* l, struct net_resp* resp, int headerPos) {
-  resp->code = -1;
-  resp->content_length = -1;
-  resp->body = NULL;
-
-  int args = lua_gettop(l);
-  if ( args < 1 ) { luaL_error(l, "query URL required"); return NULL; }
-  if ( args >= headerPos && !lua_istable(l, headerPos) ) {
-    printf("'headers' should be a table\n");
-    luaL_error(l, "'headers' should be a table");
-    return NULL;
-  }
-
-  char* headers = NULL;
-
-  if ( args >= headerPos && lua_istable(l, headerPos) ) {
-    // printf("create headers\n");
-    const char* h = table_to_headers(l).c_str();
-    // printf("%s\n", h);
-    headers = (char*) malloc( strlen(h) );
-    strcpy(headers, h);
-  }
-
-  return headers;
-}
-
-int push_common_response(lua_State* l, char* headers, struct net_resp* resp, int ret) {
-    if ( ret < 0 ) {
-      lua_pushnumber(l, ret);
-      ret = 1;
-      goto end;
-    }
+int push_common_response(lua_State* l, Solarus::Http::Response *resp) {
     lua_pushnumber(l, resp->code);
-    lua_pushstring(l, resp->body ? resp->body : "" );
-    ret = 2 + push_headers(l, resp);
-  end:
-    if ( headers != NULL ) free(headers);
-    if ( resp->headers != NULL ) free(resp->headers);
-    return ret;
+    lua_pushstring(l, resp->body().c_str() );
+    push_headers(l, resp);
+    return 3;
 }
 
-int LuaContext::net_api_http_get(lua_State* l) {
-  return state_boundary_handle(l, [&] {
-    struct net_resp resp;
-    char* headers = init_qry(l, &resp, 2);
-    int ret = net_http_get( lua_tostring(l, 1), headers, &resp );
-    return push_common_response(l, headers, &resp, ret);
+int net_api_http_get(lua_State* l) {
+  return LuaContext::state_boundary_handle(l, [&] {
+    Solarus::Http::Response *resp = Solarus::Http::get( lua_tostring(l, 1) );
+    return push_common_response(l, resp);
   });
 }
 
 int net_api_http_post(lua_State* l) {
   return LuaContext::state_boundary_handle(l, [&] {
-    struct net_resp resp;
     // printf("URL:%s BODY:%s\n", lua_tostring(l, 1), lua_tostring(l, 2));
-    char* headers = init_qry(l, &resp, 3);
-    const char* body = lua_gettop(l) < 2 ? "\0" : lua_tostring(l, 2);
-    int ret = net_http_post( lua_tostring(l, 1), body, headers, &resp );
-    return push_common_response(l, headers, &resp, ret);
+    Solarus::Http::Response *resp = Solarus::Http::query(
+      "POST",
+      lua_tostring(l, 1),
+      lua_gettop(l) < 3 ? "" : table_to_headers(l),
+      lua_gettop(l) < 2 ? "" : lua_tostring(l, 2)
+    );
+    return push_common_response(l, resp);
+  });
+}
+
+int net_api_json_post(lua_State* l) {
+  return LuaContext::state_boundary_handle(l, [&] {
+    Solarus::Http::Response *resp = Solarus::Http::query(
+      "POST",
+      lua_tostring(l, 1),
+      lua_gettop(l) < 3 ? "" : table_to_headers(l),
+      lua_istable(l, 2) ? table_to_json(l) : "{}"
+    );
+    return push_common_response(l, resp);
+  });
+}
+
+int net_api_json_get(lua_State* l) {
+  return LuaContext::state_boundary_handle(l, [&] {
+    Solarus::Http::Response *resp = Solarus::Http::query(
+      "POST",
+      lua_tostring(l, 1),
+      lua_gettop(l) < 3 ? "" : table_to_headers(l),
+      ""
+    );
+    return push_common_response(l, resp);
+  });
+}
+
+int net_api_test(lua_State* l) {
+  return LuaContext::state_boundary_handle(l, [&] {
+    Solarus::Http::Response *resp = Solarus::Http::get("www.google.fr");
+    return push_common_response(l, resp);
   });
 }
 
@@ -433,20 +337,22 @@ int run_test(lua_State* l) {
    return 1;
 }
 
+}
+
 
 
 /**
  * \brief Initializes the map features provided to Lua.
  */
-void LuaContext::register_net_module() {
+void Solarus::LuaContext::register_net_module() {
 
   const std::vector<luaL_Reg> methods = {
-      { "test", net_api_test },
-      { "http_get", net_api_http_get },
-      { "http_post", net_api_http_post },
-      { "json_get", Solarus::net_api_json_get },
-      { "json_post", Solarus::net_api_json_post },
-      { "run", run_test},
+      { "test", Solarus::Net::net_api_test },
+      { "http_get", Solarus::Net::net_api_http_get },
+      { "http_post", Solarus::Net::net_api_http_post },
+      { "json_get", Solarus::Net::net_api_json_get },
+      { "json_post", Solarus::Net::net_api_json_post },
+      { "run", Solarus::Net::run_test},
   };
 
 /*
@@ -457,13 +363,11 @@ void LuaContext::register_net_module() {
   };
 */
 
-  register_functions(net_module_name, methods);
+  register_functions(Solarus::Net::net_module_name, methods);
   lua_getglobal(current_l, "sol"); // ... sol
   lua_getfield(current_l, -1, "net"); // ... sol net
-  lua_setfield(current_l, LUA_REGISTRYINDEX, net_module_name.c_str()); // ... sol
+  lua_setfield(current_l, LUA_REGISTRYINDEX, Solarus::Net::net_module_name.c_str()); // ... sol
   lua_pop(current_l, 1); // ...
-
-}
 
 }
 

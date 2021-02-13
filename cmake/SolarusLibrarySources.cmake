@@ -369,7 +369,9 @@ target_sources(solarus
     "${CMAKE_CURRENT_SOURCE_DIR}/include/solarus/third_party/snes_spc/SPC_DSP.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/include/solarus/third_party/snes_spc/SPC_Filter.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/include/solarus/third_party/snes_spc/spc.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/solarus/net/net.h"
+
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/solarus/net/Http.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/solarus/net/Json.h"
 
   PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/src/audio/ItDecoder.cpp"
@@ -582,5 +584,7 @@ target_sources(solarus
     "${CMAKE_CURRENT_SOURCE_DIR}/src/third_party/snes_spc/SPC_Filter.cpp"
 
     "${CMAKE_CURRENT_SOURCE_DIR}/src/lua/Net.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/net/main.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/net/Http.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/net/Json.cpp"
+
 )

@@ -1,0 +1,29 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "g++.exe - déboguer Solarus",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "e:\\solarus\\solarus-run.exe",
+            "args": ["e:\\java-quest"],
+            "stopAtEntry": false,
+            "cwd": "E:\\msys64\\mingw64\\bin",
+            "environment": [],
+            // "console": "bash",
+            "MIMode": "gdb",
+            "miDebuggerPath": "E:\\msys64\\mingw64\\bin\\gdb.exe",
+            "setupCommands": [
+                {
+                    "description": "Activer l'impression en mode Pretty pour gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            // "preLaunchTask": "C/C++: g++.exe générer le fichier actif"
+        }
+    ]
+}
