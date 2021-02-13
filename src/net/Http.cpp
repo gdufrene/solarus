@@ -11,6 +11,9 @@ using namespace std;
 
 class Conn {
     public:
+    char * buffer = NULL;
+    char * mark = NULL;
+
     Conn(string host, int port) {
         if(SDLNet_ResolveHost(&ip, host.c_str(), port)==-1)
         {
@@ -27,25 +30,63 @@ class Conn {
     int send(const char* data) {
         return SDLNet_TCP_Send(sock, data, strlen(data));
     }
-    void onRead( std::function<void(char*)> onPart ) {
-        char * buff = (char *) malloc(2000);
-        int read;
-        while ( (read = SDLNet_TCP_Recv(sock, buff, 1999)) > 0 ) {
-            buff[read] = 0;
-            onPart(buff);
+    int feed() {
+        if (buffer == NULL) buffer = (char *) malloc(bufferSize);
+        int size = bufferSize - 1;
+        char* bufferEnd = buffer + bufferSize;
+        if ( mark != NULL && mark > (bufferEnd - 200)) {
+            size = bufferEnd - mark;
+            memcpy(buffer, mark, size);
+            mark = buffer + size;
+        } else {
+            mark = buffer;
         }
-        free(buff);
-        if ( read < 0 ) {
+        size = bufferEnd - mark - 1;
+        int res = SDLNet_TCP_Recv(sock, buffer, size);
+        if ( res < 0 ) {
             throw NetException( string("SDLNet_TCP_Recv: ").append(SDLNet_GetError()).c_str() );
         }
+        /*DEBUG*/ printf("FEED %d bytes.\n", res);
+        buffer[size] = 0; 
+        mark = buffer;
+        return res;
+    }
+    char* readLine() {
+        char* endLine;
+        if ( mark == NULL || (endLine = strstr(mark, CRLF)) == NULL ) {
+            endLine = strstr(mark, CRLF);
+        }
+        *(endLine) = 0;
+        char *res = mark;
+        mark = endLine + 2;
+        /*DEBUG*/ printf("Readline %lld bytes.\n", endLine - res);
+        return res;
+    }
+    void onRead( std::function<void(char*)> onPart ) {
+        int read;
+        do {
+            if ( mark != NULL ) {
+                onPart(mark);
+            }
+            read = feed();
+        } while( read > 0 );
+        free(buffer);
+        buffer = NULL;
     }
     ~Conn() {
-        if ( isOpen ) SDLNet_TCP_Close(sock);
+        if ( buffer != NULL ) {
+            free( buffer );
+        }
+        if ( isOpen ) {
+            SDLNet_TCP_Close(sock);
+        }
     }
     private:
     IPaddress ip;
     TCPsocket sock;
     bool isOpen = false;
+    int bufferSize = 10000;
+    
     
 
 };
@@ -79,7 +120,7 @@ namespace Solarus::Http
                 endHost = beginPort - 1;
             }
             hostname = url.substr(beginHost, endHost - beginHost);
-            printf("host: %s, port: %d\n", hostname.c_str(), port);
+            /*DEBUG*/ printf("host: %s, port: %d\n", hostname.c_str(), port);
             size_t endPath = url.find("?", endHostAndPort);
             if (endPath == string::npos) {
                 path = string("/");
@@ -94,7 +135,28 @@ namespace Solarus::Http
 
     class ConnResponse : public Response {
         public:
-        ConnResponse(Conn *conn) : conn(conn) {} ;
+        ConnResponse(Conn *conn) : conn(conn) {
+            int read = conn->feed();
+            if ( read < 0 ) {
+                throw new NetException("Unable to read response headers.");
+            }
+            char * buffer = conn->readLine();
+            /*DEBUG*/ printf("Raw Status Line: %s\n", buffer);
+            int majorVersion;
+            int minorVersion;
+            char message[100];
+            int size = sscanf(buffer, "HTTP/%1d.%1d %3d %100s", &majorVersion, &minorVersion, &this->code, message);
+            if ( size < 0 ) {
+                throw new NetException("Unable to read status line in response.");
+            }
+            this->message = std::string(message);
+            /*DEBUG*/ printf("Response [%d] [%s] with Http %d/%d\n", this->code, this->message.c_str(), majorVersion, minorVersion );
+            int i = 0;
+            while( strlen(buffer = conn->readLine()) > 0 ) {
+                if (i < 32) this->headers[i++] = strdup(buffer);
+            }
+            for (;i<32;i++) this->headers[i] = NULL;
+        };
         Conn *conn;
         string body() {
             if ( bodyInit ) return bodyContent;
@@ -134,17 +196,19 @@ namespace Solarus::Http
     }
 
     Response* get(string urlParam) {
+        /*DEBUG*/ printf("GET %s\n", urlParam.c_str());
         return query("GET", urlParam, "", "");
     }
 
     Response* query(string method, string urlParam, string additionalHeaders, string body) {
         Url url = Url(urlParam);
         Conn *conn = new Conn(url.hostname, url.port);
+        /*DEBUG*/ printf("connection to %s : %d\n", url.hostname.c_str(), url.port);
         string head = string();
         char* header = genHeaders(method, url);
         strcat(header, additionalHeaders.c_str());
         strcat(header, CRLF);
-        printf("%s\n", header);
+        /*DEBUG*/ printf("___ Generated headers: \n%s\n", header);
         if ( conn->send( header ) < 0 ) {
             free(header);
             throw NetException("unable to send request");
@@ -153,7 +217,8 @@ namespace Solarus::Http
         if ( !body.empty() && conn->send( body.c_str() ) < 0 ) {
             throw NetException("unable to send body");
         }
-
+        /*DEBUG*/ if ( !body.empty() ) printf("Body sent.\n");
+        /*DEBUG*/ printf("return new connResponse.\n");
         return new ConnResponse( conn );
     };
     

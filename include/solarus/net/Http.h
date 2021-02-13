@@ -10,7 +10,7 @@ using namespace std;
 class NetException: exception {
     public:
     NetException(const char* msg) throw() :message(msg) {} 
-    virtual const char* what() const throw() { 
+    const char* what() const throw() { 
         return message;
     }
     private:
@@ -32,7 +32,12 @@ namespace Solarus::Http {
         public:
         char* headers[32];
         int code = -1;
+        string message;
+
         virtual string body() = 0;
+        Response() {
+            for(int i = 0; i < 32; i++) headers[i] = NULL;
+        }
         // virtual ~Response() = 0;
     };
 
