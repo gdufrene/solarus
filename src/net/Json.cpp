@@ -2,6 +2,7 @@
 #include "solarus/third_party/json/jsmin.h"
 #include <string.h>
 #include <stdlib.h>
+#include <stdio.h>
 
 namespace Solarus::Json {
 
@@ -11,10 +12,10 @@ namespace Solarus::Json {
         jsmn_parser parser;
 
         std::function<void(double)> onNumberFn;
-        std::function<void(char *)> onStringFn;
+        std::function<void(std::string)> onStringFn;
         std::function<void(bool)> onBooleanFn;
         std::function<void(int)> onArrayFn, onObjectFn;
-        std::function<void(const char*)> onErrorFn;
+        std::function<void(std::string)> onErrorFn;
         std::function<void(int)> afterArrayElm;
         std::function<void()> afterObjectElm;
 
@@ -24,8 +25,9 @@ namespace Solarus::Json {
         void push_json_array(char *json);
 */
 
-        void push_json_array(char *json) {
+        void push_json_array(const char *json) {
             int size = tokens->size;
+            //DEBUG printf("push array size %d\n", size);
             int idx = 1;
             onArrayFn(size);
             while (size-- > 0) {
@@ -35,30 +37,33 @@ namespace Solarus::Json {
             }
         }
 
-        void push_json_value(char *json) {
-            char *ptr = json + tokens->start;
+        void push_json_value(const char *json) {
+            const char *ptr = json + tokens->start;
+            //DEBUG printf("Push value\n");
 
             if ( tokens->type == JSMN_STRING ) {
-                json[ tokens->end ] = '\0';
-                // printf("string -> %s\n", ptr);
+                // json[ tokens->end ] = '\0';
+                std::string str = std::string(ptr, tokens->end - tokens->start);
+                //DEBUG printf("  string -> %s\n", str.c_str());
                 // lua_pushstring(l, ptr);
-                return onStringFn(ptr);
+                return onStringFn(str);
             }
             
             if ( tokens->type == JSMN_PRIMITIVE ) {
-                char c = json[ tokens->start ];
+                std::string str = std::string(ptr, tokens->end - tokens->start);
+                char c = str.at(0);
                 if ( c >= '0' && c <= '9' ) {
                     double value;
-                    json[ tokens->end ] = '\0';
+                    // json[ tokens->end ] = '\0';
                     // strncpy( buffer, ptr, tokens[idx].end - tokens[idx].start );
-                    value = strtod(ptr, NULL);
-                    // printf("number -> %.2f\n", value);
+                    value = std::stod(str);
+                    //DEBUG printf("  number -> %.2f\n", value);
                     // lua_pushnumber(l, value);
                     return onNumberFn(value);
                 } else {
                     int boolvalue = (c == 't' || c == 'T');
                     // lua_pushboolean(l, boolvalue);
-                    // printf("bool -> %s\n", (boolvalue ? "true" : "false"));
+                    //DEBUG printf("  bool -> %s\n", (boolvalue ? "true" : "false"));
                     return onBooleanFn( boolvalue );
                 }
             }
@@ -74,20 +79,21 @@ namespace Solarus::Json {
             onStringFn((char*)"#Json Unknown type#");
         }
 
-        void push_json_object(char *json) {
+        void push_json_object(const char *json) {
             int size = tokens->size;
-            char *ptr;
-
+            
+            //DEBUG printf("push objects size %d\n", size);
             // lua_newtable(l);
             onObjectFn(size);
             while (size-- > 0) {
                 // Key (must be string)
                 tokens++;
-                ptr = json + tokens->start;
-                json[ tokens->end ] = '\0';
-                // printf("key -> %s\n", ptr);
+                const char *ptr = json + tokens->start;
+                // json[ tokens->end ] = 0;
+                std::string key = std::string(ptr, tokens->end - tokens->start);
+                //DEBUG printf("key -> %s\n", key.c_str());
                 // lua_pushstring(l, ptr);
-                onStringFn(ptr);
+                onStringFn( key );
                 // value ...
                 tokens++;
                 push_json_value(json);
@@ -100,10 +106,13 @@ namespace Solarus::Json {
 
         public:
         _Parser() {};
-        void parse(char* json) {
+        void parse(const char* json) {
             jsmn_init(&parser);
-            jsmntok_t tokens[100];
+            jsmntok_t _tokens[100];
+            tokens = _tokens; // temp assign tokens
+            //DEBUG printf("Parser initialising ...\n");
             int r = jsmn_parse( &parser, json, strlen(json), tokens, 100 );
+            //DEBUG printf("   result ... %d\n", r);
 
             if ( r == JSMN_ERROR_NOMEM ) return onErrorFn("Json contains too much nodes");
             if ( r == JSMN_ERROR_INVAL ) return onErrorFn("Json contains invalid characters");
@@ -119,7 +128,7 @@ namespace Solarus::Json {
             this->onNumberFn = consumer;
             return this;
         }
-        Parser* onString(std::function<void(char *)> consumer) {
+        Parser* onString(std::function<void(std::string)> consumer) {
             this->onStringFn = consumer;
             return this;
         }
@@ -143,7 +152,7 @@ namespace Solarus::Json {
             this->afterObjectElm = afterObjectElm;
             return this;
         }
-        Parser* onError(std::function<void(const char*)> consumer) {
+        Parser* onError(std::function<void(std::string)> consumer) {
             this->onErrorFn = consumer;
             return this;
         }

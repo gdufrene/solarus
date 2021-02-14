@@ -131,18 +131,19 @@ std::string table_to_json(lua_State* l) {
   return json;
 }
 
-int push_json( lua_State* l, char *json ) {
+int push_json( lua_State* l, const char *json ) {
     if ( json == NULL ) {
       lua_pushnil(l);
       return 1;
     }
 
     Solarus::Json::Parser *parser = Solarus::Json::createParser();
+    //DEBUG printf("Created parser. %#010x\n", parser);
 
-    auto new_table = [&] (int size) { lua_newtable(l); };
+    auto new_table = [&] (int) { lua_newtable(l); };
 
     parser
-      ->onString( [&] (char* val) { lua_pushstring(l, val); } )
+      ->onString( [&] (string val) { lua_pushstring(l, val.c_str()); } )
       ->onNumber( [&] (double val) { lua_pushnumber(l, val); })
       ->onBoolean( [&] (bool val) { lua_pushboolean(l, val); })
       ->onObject( new_table,
@@ -151,10 +152,11 @@ int push_json( lua_State* l, char *json ) {
       ->onArray( new_table,
         [&] (int idx) { lua_rawseti(l, -2, idx); }
       )
-      ->onError( [&] (const char* error) { luaL_error(l, error); } )
+      ->onError( [&] (string error) { luaL_error(l, error.c_str()); } )
       ;
+    parser->parse( json );
 
-    delete parser;
+    parser->~Parser();
 
     return 1;
 }
@@ -283,7 +285,21 @@ int push_common_response(lua_State* l, Solarus::Http::Response *resp) {
     //DEBUG printf("Push headers ...\n" );
     push_headers(l, resp);
 
-    delete resp; // after pushing everything response is no more needed.
+    resp->~Response(); // after pushing everything response is no more needed.
+
+    return 3;
+}
+
+int push_common_json_response(lua_State* l, Solarus::Http::Response *resp) {
+    //DEBUG printf("Code: %d\n", resp->code);
+    lua_pushnumber(l, resp->code);
+    //DEBUG printf("Body (size): %d\n", resp->body().size() );
+    // lua_pushstring(l, resp->body().c_str() );
+    push_json(l, (resp->body()).c_str());
+    //DEBUG printf("Push headers ...\n" );
+    push_headers(l, resp);
+
+    resp->~Response(); // after pushing everything response is no more needed.
 
     return 3;
 }
@@ -339,12 +355,12 @@ int net_api_json_post(lua_State* l) {
 int net_api_json_get(lua_State* l) {
   return do_cpp_net_call(l, [&] {
     Solarus::Http::Response *resp = Solarus::Http::query(
-      "POST",
+      "GET",
       lua_tostring(l, 1),
       lua_gettop(l) < 3 ? "" : table_to_headers(l),
       ""
     );
-    return push_common_response(l, resp);
+    return push_common_json_response(l, resp);
   });
 }
 
@@ -353,7 +369,7 @@ int net_api_test(lua_State* l) {
     //DEBUG printf("net_api_test\n");
     Solarus::Http::Response *resp = Solarus::Http::get("www.google.fr");
     //DEBUG printf("Response received. %p\n", resp);
-    return push_common_response(l, resp);
+    return push_common_json_response(l, resp);
   });
 }
 
