@@ -5,7 +5,11 @@
 
 #include <string>
 
+#include "sqlite3.h"
+
+
 #define index(str, c) (strchr(str, c) - str)
+
 
 namespace Solarus::Net {
 
@@ -373,12 +377,6 @@ int net_api_test(lua_State* l) {
   });
 }
 
-int run_test(lua_State* l) {
-   int r = system("java -version");
-   lua_pushnumber(l, r);
-   return 1;
-}
-
 }
 
 
@@ -393,8 +391,7 @@ void Solarus::LuaContext::register_net_module() {
       { "http_get", Solarus::Net::net_api_http_get },
       { "http_post", Solarus::Net::net_api_http_post },
       { "json_get", Solarus::Net::net_api_json_get },
-      { "json_post", Solarus::Net::net_api_json_post },
-      { "run", Solarus::Net::run_test},
+      { "json_post", Solarus::Net::net_api_json_post }
   };
 
 /*
