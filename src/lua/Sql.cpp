@@ -3,6 +3,7 @@
 #include "solarus/core/Logger.h"
 
 #include <string>
+#include <cstdlib>
 #include "sqlite3.h"
 
 
@@ -66,7 +67,8 @@ namespace Solarus::Sql {
     sqlite3 *db;
     char *zErrMsg = 0;
     int rc;
-    rc = sqlite3_open("data.db", &db);
+    std::string dataPath = std::string(std::getenv("HOME")) + "/users-data.db";
+    rc = sqlite3_open(dataPath.c_str(), &db);
 
     if( rc ) {
       fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
@@ -88,9 +90,8 @@ namespace Solarus::Sql {
       sqlite3_free(zErrMsg);
     } else {
       if ( added > 0 ) {
-        // lua_settable(current_lua, -3);
-        printf("added %d rows.\n", added);
-        stackDump(current_lua);
+        //DEBUG printf("added %d rows.\n", added);
+        //DEBUG stackDump(current_lua);
       } else {
         lua_pushstring(current_lua, "Ok");
       }
