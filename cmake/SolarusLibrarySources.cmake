@@ -373,6 +373,7 @@ target_sources(solarus
     "${CMAKE_CURRENT_SOURCE_DIR}/include/solarus/net/Http.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/include/solarus/net/Json.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/include/solarus/lua/SqlModule.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/solarus/lua/LogApi.h"
 
 
   PRIVATE
@@ -589,6 +590,7 @@ target_sources(solarus
     "${CMAKE_CURRENT_SOURCE_DIR}/src/net/Http.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/net/Json.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/lua/Sql.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/lua/LogApi.cpp"
 
 
 )

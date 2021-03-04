@@ -47,6 +47,7 @@
 #include <sstream>
 
 #include "solarus/lua/SqlModule.h"
+#include "solarus/lua/LogApi.h"
 
 namespace Solarus {
 
@@ -1089,6 +1090,7 @@ void LuaContext::register_modules() {
 
   register_net_module();
   Solarus::Sql::register_sql_module(current_l);
+  Solarus::Log::register_log_module(current_l);
 
   Debug::check_assertion(lua_gettop(current_l) == 0,
       "Lua stack is not empty after modules initialization");

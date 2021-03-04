@@ -232,7 +232,7 @@ int push_headers(lua_State* l, Solarus::Http::Response *resp) {
   }
 
   // stackDump(l);
-  print_table(l);
+  // print_table(l);
   
   return 1;
 }

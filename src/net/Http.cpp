@@ -29,6 +29,7 @@ class Conn {
         isOpen = true;
     }
     int send(const char* data) {
+        //DEBUG printf(data);
         return SDLNet_TCP_Send(sock, data, strlen(data));
     }
     int feed() {
@@ -254,6 +255,12 @@ namespace Solarus::Http
         //DEBUG printf("connection to %s : %d\n", url.hostname.c_str(), url.port);
         string head = string();
         char* header = genHeaders(method, url);
+        if ( !body.empty() ) {
+            additionalHeaders = additionalHeaders
+                .append("Content-Length: ")
+                .append(std::to_string(body.size()))
+                .append(CRLF);
+        }
         strcat(header, additionalHeaders.c_str());
         strcat(header, CRLF);
         //DEBUG printf("___ Generated headers: \n%s\n", header);
