@@ -133,7 +133,7 @@ For example, in Ubuntu or Debian:
     build-essential cmake pkg-config
     libsdl2-dev libsdl2-image-dev libsdl2-ttf-dev libsdl2-net-dev libluajit-5.1-dev
     libphysfs-dev libopenal-dev libvorbis-dev libmodplug-dev
-    qtbase5-dev qttools5-dev qttools5-dev-tools libglm-dev
+    qtbase5-dev qttools5-dev qttools5-dev-tools libglm-dev libsqlite3-dev
 
 ## Windows users
 
