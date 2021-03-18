@@ -101,44 +101,38 @@ class Conn {
 namespace Solarus::Http
 {
 
-    class Url {
-        public:
-        string hostname;
-        int port;
-        string path;
-        string queryString;
-
-        Url(string url) {
-            parse(url);
+    void Url::parse(string url) {
+        size_t beginHost = url.find("//", 0);
+        if (beginHost == string::npos) beginHost = 0;
+        else beginHost += 2;
+        size_t endHostAndPort = url.find("/", beginHost);
+        bool nopath = (endHostAndPort == string::npos);
+        if (nopath) endHostAndPort = url.size();
+        size_t beginPort = url.find(":", beginHost);
+        port = 80;
+        size_t endHost = endHostAndPort;
+        if ( beginPort != string::npos && beginPort < endHostAndPort ) {
+            beginPort++;
+            port = stoi( url.substr(beginPort, endHostAndPort - beginPort) );
+            endHost = beginPort - 1;
         }
-
-        void parse(string url) {
-            size_t beginHost = url.find("//", 0);
-            if (beginHost == string::npos) beginHost = 0;
-            else beginHost += 2;
-            size_t endHostAndPort = url.find("/", beginHost);
-            if (endHostAndPort == string::npos) endHostAndPort = url.size();
-            size_t beginPort = url.find(":", beginHost);
-            port = 80;
-            size_t endHost = endHostAndPort;
-            if ( beginPort != string::npos && beginPort < endHostAndPort ) {
-                beginPort++;
-                port = stoi( url.substr(beginPort, endHostAndPort - beginPort) );
-                endHost = beginPort - 1;
-            }
-            hostname = url.substr(beginHost, endHost - beginHost);
-            //DEBUG printf("host: %s, port: %d\n", hostname.c_str(), port);
-            size_t endPath = url.find("?", endHostAndPort);
-            if (endPath == string::npos) {
-                path = url.substr(endHostAndPort);
-                endPath = url.size();
-                queryString = string("");
-            } else {
-                path = url.substr(endHostAndPort+1, endPath - endHostAndPort);
-                queryString = url.substr(endPath + 1);
-            }
+        hostname = url.substr(beginHost, endHost - beginHost);
+        if ( nopath ) {
+            path = "/";
+            queryString = "";
+            return;
         }
-    };
+        //DEBUG printf("host: %s, port: %d\n", hostname.c_str(), port);
+        size_t endPath = url.find("?", endHostAndPort);
+        if (endPath == string::npos) {
+            path = url.substr(endHostAndPort);
+            endPath = url.size();
+            queryString = string("");
+        } else {
+            path = url.substr(endHostAndPort, endPath - endHostAndPort);
+            queryString = url.substr(endPath+1);
+        }
+    }
 
     class ConnResponse : public Response {
         public:

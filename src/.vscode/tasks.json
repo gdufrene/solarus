@@ -7,8 +7,40 @@
             "args": [
                 "-g",
                 "${file}",
+                "${workspaceFolder}\\..\\build\\CMakeFiles\\solarus.dir\\src\\net\\Http.cpp.obj",
+                "-I",
+                "${workspaceFolder}\\..\\include",
+                "-L",
+                "e:\\msys64\\mingw64\\lib",
+                "-l",
+                "SDL2_net",
                 "-o",
                 "${fileDirname}\\${fileBasenameNoExtension}.exe"
+            ],
+            "options": {
+                "cwd": "E:\\msys64\\mingw64\\bin"
+            },
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "detail": "Tâche générée par le débogueur."
+        },
+        {
+            "type": "cppbuild",
+            "label": "C/C++: g++.exe générer l'objet du fichier actif",
+            "command": "E:\\msys64\\mingw64\\bin\\g++.exe",
+            "args": [
+                "-c",
+                "${file}",
+                "-I",
+                "${workspaceFolder}\\..\\include",
+                "-IE:/msys64/mingw64/include/SDL2",
+                "-o",
+                "${workspaceFolder}\\..\\build\\CMakeFiles\\solarus.dir\\src\\${fileDirnameBasename}\\${fileBasename}.obj"
             ],
             "options": {
                 "cwd": "E:\\msys64\\mingw64\\bin"

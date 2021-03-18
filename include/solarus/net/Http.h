@@ -18,6 +18,19 @@ class NetException: exception {
 };
 
 namespace Solarus::Http {
+    class Url {
+        public:
+        string hostname;
+        int port;
+        string path;
+        string queryString;
+        Url(string url) {
+            parse(url);
+        }
+        private:
+        void parse(string url);
+    };
+
     class Query {
         public:
         string method;
