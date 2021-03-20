@@ -17,7 +17,21 @@ class NetException: exception {
     const char* message;
 };
 
-namespace Solarus::Http {
+namespace Solarus {
+namespace Http {
+    class Url {
+        public:
+        string hostname;
+        int port;
+        string path;
+        string queryString;
+        Url(string url) {
+            parse(url);
+        }
+        private:
+        void parse(string url);
+    };
+
     class Query {
         public:
         string method;
@@ -38,12 +52,15 @@ namespace Solarus::Http {
         Response() {
             for(int i = 0; i < 32; i++) headers[i] = NULL;
         }
-        // virtual ~Response() = 0;
+        virtual ~Response() = 0;
     };
 
     Response* get(string urlParam);
     Response* query(string method, string url, string headers, string body);
 
-};
+}; // http
+}; // solarus
+
+
 
 #endif

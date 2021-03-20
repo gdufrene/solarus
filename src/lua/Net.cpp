@@ -11,7 +11,9 @@
 #define index(str, c) (strchr(str, c) - str)
 
 
-namespace Solarus::Net {
+namespace Solarus {
+
+namespace Net {
 
 /**
  * Name of the Lua table representing the map module.
@@ -160,7 +162,7 @@ int push_json( lua_State* l, const char *json ) {
       ;
     parser->parse( json );
 
-    parser->~Parser();
+    delete parser; // fail
 
     return 1;
 }
@@ -168,7 +170,7 @@ int push_json( lua_State* l, const char *json ) {
 
 
 int push_headers(lua_State* l, Solarus::Http::Response *resp) {
-  if ( ! resp->headers ) {
+  if ( resp->headers[0] == NULL ) {
     lua_pushnil(l);
     return 1;
   }
@@ -284,12 +286,14 @@ std::string table_to_headers(lua_State* l) {
 int push_common_response(lua_State* l, Solarus::Http::Response *resp) {
     //DEBUG printf("Code: %d\n", resp->code);
     lua_pushnumber(l, resp->code);
-    //DEBUG printf("Body (size): %d\n", resp->body().size() );
+    //DEBUG printf("Body (size): %lu\n", resp->body().size() );
     lua_pushstring(l, resp->body().c_str() );
     //DEBUG printf("Push headers ...\n" );
     push_headers(l, resp);
 
     resp->~Response(); // after pushing everything response is no more needed.
+
+    //DEBUG printf("destroyed\n" );
 
     return 3;
 }
@@ -377,9 +381,9 @@ int net_api_test(lua_State* l) {
   });
 }
 
-}
+}; // ns net
 
-
+}; // ns solarus
 
 /**
  * \brief Initializes the map features provided to Lua.

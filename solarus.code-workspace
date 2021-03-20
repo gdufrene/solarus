@@ -8,6 +8,9 @@
 		},
 		{
 			"path": "cmake"
+		},
+		{
+			"path": "tests\\src\\tests"
 		}
 	],
 	"settings": {

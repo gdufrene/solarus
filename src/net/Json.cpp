@@ -4,11 +4,12 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-namespace Solarus::Json {
+namespace Solarus {
+namespace Json {
 
     class _Parser: public Parser {
         private:
-        jsmntok_t *tokens;
+        jsmntok_t *tokens; // in stack, used as 'global' during parsing.
         jsmn_parser parser;
 
         std::function<void(double)> onNumberFn;
@@ -106,6 +107,8 @@ namespace Solarus::Json {
 
         public:
         _Parser() {};
+        ~_Parser() {};
+
         void parse(const char* json) {
             jsmn_init(&parser);
             jsmntok_t _tokens[100];
@@ -156,6 +159,7 @@ namespace Solarus::Json {
             this->onErrorFn = consumer;
             return this;
         }
+        
     };
 
 
@@ -164,4 +168,8 @@ namespace Solarus::Json {
     };
 
 
-};
+}; // json
+}; // solarus
+
+Solarus::Json::Parser::~Parser(){}
+

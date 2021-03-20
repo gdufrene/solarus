@@ -1,0 +1,16 @@
+{
+    "configurations": [
+        {
+            "includePath": [
+                "../include",
+                "../build/include",
+                "E:/msys64/mingw64/include",
+                "E:/msys64/mingw64/include/SDL2",
+                "E:/msys64/mingw64/x86_64-w64-mingw32/include",
+                "e:/msys64/mingw64/include/luajit-2.1"
+            ],
+            "cStandard": "c17"
+        }
+    ],
+    "version": 4
+}
