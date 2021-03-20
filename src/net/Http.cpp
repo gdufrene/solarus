@@ -29,7 +29,7 @@ class Conn {
         isOpen = true;
     }
     int send(const char* data) {
-        //DEBUG printf(data);
+        //DEBUG printf("%s\n", data);
         return SDLNet_TCP_Send(sock, data, strlen(data));
     }
     int feed() {
@@ -66,14 +66,14 @@ class Conn {
         *(endLine) = 0;
         res.append(mark);
         mark = endLine + 2;
-        //DEBUG printf("Readline %lld bytes: %s\n", res.size(), res.c_str());
+        //DEBUG printf("Readline %lu bytes: %s\n", res.size(), res.c_str());
         return res;
     }
-    void onRead( std::function<void(char*)> onPart ) {
+    void onRead( std::function<void(char*, int)> onPart ) {
         int read;
         do {
             if ( mark != NULL ) {
-                onPart(mark);
+                onPart(mark, read);
             }
             read = feed();
         } while( read > 0 );
@@ -98,8 +98,8 @@ class Conn {
 
 };
 
-namespace Solarus::Http
-{
+namespace Solarus {
+namespace Http {
 
     void Url::parse(string url) {
         size_t beginHost = url.find("//", 0);
@@ -118,8 +118,8 @@ namespace Solarus::Http
         }
         hostname = url.substr(beginHost, endHost - beginHost);
         if ( nopath ) {
-            path = "/";
-            queryString = "";
+            path = string("/");
+            queryString = string("");
             return;
         }
         //DEBUG printf("host: %s, port: %d\n", hostname.c_str(), port);
@@ -132,7 +132,8 @@ namespace Solarus::Http
             path = url.substr(endHostAndPort, endPath - endHostAndPort);
             queryString = url.substr(endPath+1);
         }
-    }
+    };
+
 
     class ConnResponse : public Response {
         public:
@@ -162,6 +163,10 @@ namespace Solarus::Http
                     chunkedMode = true;
                     //DEBUG printf("Chunked mode activated.\n");
                 }
+                if ( line.find("Content-Length") == 0 ) {
+                    sscanf(line.c_str(), "Content-Length: %d" CRLF, &contentLength);
+                    //DEBUG printf("Content Length read: %d\n", contentLength);
+                }
             } while( line.size() > 0 );
         };
         Conn *conn;
@@ -173,6 +178,7 @@ namespace Solarus::Http
             return bodyContent;
         };
         ~ConnResponse() {
+            //DEBUG printf("Delete ConnResponse, delete conn\n");
             delete conn;
         }
         private:
@@ -180,12 +186,18 @@ namespace Solarus::Http
         bool chunkedMode = false;
         string bodyContent;
         unsigned int chunkSize = 0;
+        unsigned int contentLength = 0;
         
-        function<void(char*)> readBodyPart() {
-            return [&] (char* part) { bodyContent.append(part); };
+        function<void(char*, int)> readBodyPart() {
+            return [&] (char* part, int len) {
+                if ( contentLength <= 0 ) return;
+                unsigned int size = (unsigned int) len > contentLength ? contentLength : len ;
+                bodyContent.append(part, size); 
+                contentLength -= size;
+            };
         }
-        function<void(char*)> readChunkPart() {
-            return [&] (char* part) {
+        function<void(char*, int)> readChunkPart() {
+            return [&] (char* part, int len) {
                 newChunk:
                 if ( chunkSize == 0 ) {
                     std::string line = conn->readLine();
@@ -202,8 +214,8 @@ namespace Solarus::Http
                     // return;
                     part += line.size() + 2;
                 }
-                unsigned int len = strlen(part);
-                unsigned int size = len > chunkSize ? chunkSize : len ;
+                // unsigned int len = strlen(part);
+                unsigned int size = (unsigned int) len > chunkSize ? chunkSize : len ;
                 bodyContent.append(part, size);
                 chunkSize -= size;
                 //DEBUG printf("Chunk size left: %d\n", chunkSize);
@@ -234,7 +246,7 @@ namespace Solarus::Http
         }
         res += sprintf(res, " HTTP/1.1" CRLF
             "Host: %s:%d" CRLF, url.hostname.c_str(), url.port);
-        res += sprintf(res, commonHeaders);
+        res += sprintf(res, "%s", commonHeaders);
         return from;
     }
 
@@ -270,6 +282,8 @@ namespace Solarus::Http
         //DEBUG printf("return new connResponse.\n");
         return new ConnResponse( conn );
     };
-    
-}; // namespace Net::Http
 
+}; // ns http    
+}; // ns solarus
+
+Solarus::Http::Response::~Response(){}
