@@ -175,17 +175,17 @@ int push_headers(lua_State* l, Solarus::Http::Response *resp) {
     return 1;
   }
 
-  lua_newtable(l);
+  lua_newtable(l); 
 
   int nb_cookie = 0;
   int nb_header = 0;
   char* header;
 
   lua_pushstring(l, "cookies"); 
-  lua_newtable(l);
+  lua_newtable(l); 
 
   lua_pushstring(l, "headers"); 
-  lua_newtable(l);
+  lua_newtable(l); 
 
 
   for ( int k = 0; k < 32; k++) {
@@ -221,17 +221,9 @@ int push_headers(lua_State* l, Solarus::Http::Response *resp) {
     }
   }
 
-  if ( nb_header ) {
-    lua_settable(l, -5);
-  } else {
-    lua_pop(l, 2);
-  }
-
-  if ( nb_cookie ) {
-    lua_settable(l, -3);
-  } else {
-    lua_pop(l, 2);
-  }
+  
+    lua_settable(l, -5); // set headers
+    lua_settable(l, -3); // set cookies
 
   // stackDump(l);
   // print_table(l);
@@ -246,11 +238,11 @@ std::string table_to_headers(lua_State* l) {
   lua_gettable(l, -2);
   int nb_cookie = 0;
   if ( !lua_isnil(l, -1) ) {
-    headers += "Cookie: ";
     nb_cookie++;
     lua_pushnil(l);
     while (lua_next(l, -2))
     {
+      if ( nb_cookie == 1 ) headers += "Cookie: ";
       if ( nb_cookie > 1 ) headers += "; ";
       // stackDump(l);
       //DEBUG printf( "Cookie Next [%s] -> %s \n", lua_tostring(l, -2), lua_tostring(l, -1));
@@ -279,6 +271,7 @@ std::string table_to_headers(lua_State* l) {
     lua_pop(l, 1);
   } 
 
+  //DEBUG printf("table to headers ->\n%s\n", headers.c_str());
   // stackDump(l);
   return headers;
 }
@@ -331,7 +324,12 @@ int do_cpp_net_call( lua_State* l, std::function<int()> function ) {
 
 int net_api_http_get(lua_State* l) {
   return do_cpp_net_call(l, [&] {
-    Solarus::Http::Response *resp = Solarus::Http::get( lua_tostring(l, 1) );
+    Solarus::Http::Response *resp = Solarus::Http::query(
+      "GET", 
+      lua_tostring(l, 1),
+      lua_gettop(l) < 2 ? "" : table_to_headers(l),
+      ""
+    );
     return push_common_response(l, resp);
   });
 }

@@ -139,7 +139,7 @@ namespace Http {
         public:
         ConnResponse(Conn *conn) : conn(conn) {
             int i = 0;
-            for (i=0; i<32; i++) this->headers[i] = NULL;
+            for (i=0; i<MAX_HEADERS; i++) this->headers[i] = NULL;
             int read = conn->feed();
             if ( read < 0 ) {
                 throw new NetException("Unable to read response headers.");
@@ -156,9 +156,13 @@ namespace Http {
             }
             this->message = std::string(message);
             //DEBUG printf("Response [%d] [%s] with Http %d.%d\n", this->code, this->message.c_str(), majorVersion, minorVersion );
+            i = 0;
             do {
                 line = conn->readLine();
-                if (i < 32) this->headers[i++] = strdup(line.c_str());
+                if (i < MAX_HEADERS && line.size() > 0) {
+                    this->headers[i] = strdup(line.c_str());
+                    //DEBUG printf("Read header: %s\n", this->headers[i]);
+                }
                 if ( line.find("Transfer-Encoding") == 0 && line.find("chunked") != std::string::npos ) {
                     chunkedMode = true;
                     //DEBUG printf("Chunked mode activated.\n");
@@ -167,6 +171,7 @@ namespace Http {
                     sscanf(line.c_str(), "Content-Length: %d" CRLF, &contentLength);
                     //DEBUG printf("Content Length read: %d\n", contentLength);
                 }
+                i++;
             } while( line.size() > 0 );
         };
         Conn *conn;

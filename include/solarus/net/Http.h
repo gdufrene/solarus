@@ -4,6 +4,7 @@
 #include <string>
 
 #define MAX_SOCKETS 10
+#define MAX_HEADERS 32
 
 using namespace std;
 
