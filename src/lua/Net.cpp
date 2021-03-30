@@ -237,6 +237,7 @@ std::string table_to_headers(lua_State* l) {
   lua_pushstring(l, "cookies");
   lua_gettable(l, -2);
   int nb_cookie = 0;
+  bool has_cookie = false;
   if ( !lua_isnil(l, -1) ) {
     nb_cookie++;
     lua_pushnil(l);
@@ -244,6 +245,7 @@ std::string table_to_headers(lua_State* l) {
     {
       if ( nb_cookie == 1 ) headers += "Cookie: ";
       if ( nb_cookie > 1 ) headers += "; ";
+      has_cookie = true;
       // stackDump(l);
       //DEBUG printf( "Cookie Next [%s] -> %s \n", lua_tostring(l, -2), lua_tostring(l, -1));
       headers += lua_tostring(l, -2);
@@ -251,7 +253,7 @@ std::string table_to_headers(lua_State* l) {
       headers += lua_tostring(l, -1);
       lua_pop(l, 1);
     }
-    headers += "\r\n";
+    if (has_cookie) headers += "\r\n";
   } 
   lua_pop(l, 1);
   lua_pushstring(l, "headers");
